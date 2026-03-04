@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>Calendario dell'Unione</title>
+    <style>
+        :root {
+            --header-bg: #73181F;
+            --border: #DE7E7E;
+            --text: #2c1a1a;
+            /* Stagioni */
+            --color-lunarede: #e3f2fd; /* Inverno */
+            --color-velmarede: #f1f8e9; /* Primavera */
+            --color-lunavede: #e8f5e9;  /* Primavera tarda */
+            --color-terenvado: #fffde7; /* Estate */
+            --color-nimeverado: #fff9c4; /* Estate tarda */
+            --color-orvedado: #efebe9;  /* Autunno */
+            --color-velario: #fce4ec;   /* Periodo speciale */
+        }
+
+        body { font-family: 'Calibri', Courier, monospace; background: #faf3f3; color: var(--text); padding: 20px; }
+        
+        .controls { text-align: center; margin-bottom: 30px; border: 2px solid var(--header-bg); padding: 15px; background: white; border-radius: 10px; }
+        .calendar-header { background: var(--header-bg); color: white; text-align: center; padding: 20px; text-transform: uppercase; letter-spacing: 4px; margin-bottom: 0; }
+
+        .month-section { margin-top: 50px; }
+        .month-label { display: inline-block; padding: 10px 40px; background: var(--header-bg); color: white; font-size: 1.5rem; font-weight: bold; border-radius: 5px 5px 0 0; }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(14, 1fr);
+            border-top: 1px solid var(--border);
+            border-left: 1px solid var(--border);
+            background: white;
+        }
+
+        .cell {
+            border-right: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+            min-height: 130px; padding: 8px; position: relative;
+        }
+
+        /* Celle vuote */
+        .cell.empty { background-color: #f9f9f9; }
+
+        /* Colori dinamici per mese */
+        .m-0 { background-color: var(--color-lunarede); }
+        .m-1 { background-color: var(--color-velmarede); }
+        .m-2 { background-color: var(--color-lunavede); }
+        .m-3 { background-color: var(--color-terenvado); }
+        .m-4 { background-color: var(--color-nimeverado); }
+        .m-5 { background-color: var(--color-orvedado); }
+        .m-velario { background-color: var(--color-velario); }
+
+        /* Classi per festività (tonalità più scura) */
+        .is-fest.m-0 { background-color: #c5e1f5; }
+        .is-fest.m-1 { background-color: #dcedc8; }
+        .is-fest.m-2 { background-color: #c8e6c9; }
+        .is-fest.m-3 { background-color: #fff9c4; }
+        .is-fest.m-4 { background-color: #fff176; }
+        .is-fest.m-5 { background-color: #d7ccc8; }
+        .is-fest.m-velario { background-color: #f8bbd0; }
+
+        .day-name { font-size: 0.9rem; font-weight: bold; color: #73181F; margin-bottom: 5px; }
+        .abs-num { position: absolute; top: 5px; right: 8px; font-weight: bold; font-size: 0.7rem; color: rgba(0,0,0,0.4); }
+        .month-num { position: absolute; bottom: 8px; right: 8px; font-weight: bold; font-size: 1.2rem; }
+
+        .zoda-sym { font-weight: bold; font-size: 1rem; color: #444; }
+
+        .fest-label { 
+            background: rgba(255, 255, 255, 0.5); 
+            border: 1px solid var(--header-bg); 
+            font-size: 0.8rem; padding: 3px; 
+            margin-top: 8px; font-weight: bold; 
+            display: block;
+        }
+
+        input { padding: 8px; width: 80px; font-size: 1.1rem; }
+        button { padding: 8px 20px; background: var(--header-bg); color: white; border: none; cursor: pointer; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+<div class="controls">
+    <h1>CALENDARIO DELL'UNIONE</h1>
+    <label>Anno CU: </label>
+    <input type="number" id="yearInput" value="1164">
+    <button onclick="render()">Calcola giorni</button>
+</div>
+
+<div id="output"></div>
+
+<script>
+const CU_WEEKNAMES = ["Alba", "Destino", "Giuramento", "Giudizio", "Memoria", "Patto", "Sacrificio", "Vendetta", "Ybris", "Baluardo", "Eresia", "Honore", "Karma", "Nexus"];
+const MONTHS = ["Lunarede", "Velmarede", "Lunavede", "Terenvado", "Nimeverado", "Orvedado"];
+const ZODA_SYMBOLS = ["-", ")", "[)", "+[)", "(+)", "(]+", "(]", "("];
+
+const FIXED_HOLIDAYS = {
+    1: "Giorno della Quadrata Antica", 31: "Rito dell’Albero Maestro", 34: "L’Invocazione",
+    61: "Giorno del Rispetto", 74: "Festa delle Fate", 84: "Feste dei mercati",
+    120: "Giorno dell’Acqua Chiara", 128: "Notte delle Fanciulle", 168: "Dipartita",
+    178: "Festa della Luna", 206: "Mezzestate", 219: "Festa del ritorno",
+    305: "Scudiuniti", 344: "Giorno del Sovrano", 355: "Mezzinverno"
+};
+
+function isLeap(y) {
+    return (y % 4 === 0 && y % 100 !== 0) || (y % 400 === 0);
+}
+
+function render() {
+    const targetYear = parseInt(document.getElementById('yearInput').value);
+    const container = document.getElementById('output');
+    container.innerHTML = `<h2 class="calendar-header">Anno ${targetYear} CU</h2>`;
+
+    let totalDaysOffset = 0;
+    for (let y = 1164; y < targetYear; y++) {
+        totalDaysOffset += isLeap(y) ? 366 : 365;
+    }
+
+    let currentAbsCounter = totalDaysOffset + 1;
+    let dayOfYear = 1;
+
+    // Funzione per generare il blocco di un mese
+    function renderMonth(mName, daysCount, cssMese) {
+        let html = `<div class="month-section">
+                        <div class="month-label">${mName}</div>
+                        <div class="grid">`;
+        
+        // Calcolo offset: quanti spazi vuoti prima del giorno 1?
+        // Alba è l'indice 0, quindi l'offset è l'indice del giorno della settimana
+        let offset = (currentAbsCounter - 1) % 14;
+        
+        // Inserimento celle vuote
+        for (let i = 0; i < offset; i++) {
+            html += `<div class="cell empty"></div>`;
+        }
+
+        // Inserimento giorni reali
+        for (let d = 1; d <= daysCount; d++) {
+            html += generateCell(currentAbsCounter, dayOfYear, d, cssMese);
+            currentAbsCounter++;
+            dayOfYear++;
+        }
+        
+        html += `</div></div>`;
+        container.innerHTML += html;
+    }
+
+    // 6 mesi da 60 giorni
+    MONTHS.forEach((mName, mIdx) => {
+        renderMonth(mName, 60, `m-${mIdx}`);
+    });
+
+    // Velario
+    const velarioDays = isLeap(targetYear) ? 6 : 5;
+    renderMonth("Velario", velarioDays, "m-velario");
+}
+
+function generateCell(abs, dayOfYear, monthDay, cssClass) {
+    const weekDayIdx = (abs - 1) % 14;
+    const zodaPos = (abs - 1) % 56;
+    const zodaSymbol = ZODA_SYMBOLS[Math.floor(zodaPos / 7)];
+    const holidayName = FIXED_HOLIDAYS[dayOfYear] || "";
+    const festClass = holidayName ? "is-fest" : "";
+
+    return `
+        <div class="cell ${cssClass} ${festClass}">
+            <div class="day-name">${CU_WEEKNAMES[weekDayIdx]}</div>
+            <div class="abs-num">${dayOfYear}</div>
+            <div class="lunar-box">
+                <span class="zoda-sym">${zodaSymbol}</span>
+            </div>
+            ${holidayName ? `<div class="fest-label">${holidayName}</div>` : ''}
+            <div class="month-num">${monthDay}</div>
+        </div>
+    `;
+}
+
+render();
+</script>
+</body>
+</html>
