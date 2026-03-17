@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calendario dell'Unione - Festività Dinamiche</title>
+    <style>
+        :root {
+            --header-bg: #73181F;
+            --border: #DE7E7E;
+            --text: #2c1a1a;
+            --color-lunarede: #e3f2fd; 
+            --color-velmarede: #f1f8e9; 
+            --color-lunavede: #e8f5e9;  
+            --color-terenvado: #fffde7; 
+            --color-nimeverado: #fff9c4; 
+            --color-orvedado: #efebe9;  
+            --color-velario: #fce4ec;   
+        }
+
+        body { font-family: 'Calibri', 'Segoe UI', sans-serif; background: #faf3f3; color: var(--text); padding: 20px; margin: 0; }
+        
+        .controls { text-align: center; margin-bottom: 30px; border: 2px solid var(--header-bg); padding: 15px; background: white; border-radius: 10px; }
+        .calendar-header { background: var(--header-bg); color: white; text-align: center; padding: 20px; text-transform: uppercase; letter-spacing: 4px; margin-bottom: 0; font-size: 1.5rem; }
+        .calendar-subheader { text-align: center; color: var(--header-bg); opacity: 0.6; font-style: italic; margin-top: 5px; font-size: 0.9rem; }
+
+        .month-section { margin-top: 50px; }
+        .month-label { display: inline-block; padding: 10px 40px; background: var(--header-bg); color: white; font-size: 1.5rem; font-weight: bold; border-radius: 5px 5px 0 0; }
+
+        /* Contenitore per permettere lo scroll orizzontale su mobile */
+        .grid-wrapper {
+            overflow-x: auto;
+            border-right: 1px solid var(--border);
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(14, minmax(80px, 1fr)); /* Forza una larghezza minima per cella */
+            border-top: 1px solid var(--border);
+            border-left: 1px solid var(--border);
+            background: white;
+            min-width: 1100px; /* Assicura che la griglia non si schiacci troppo */
+        }
+
+        .cell {
+            border-right: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+            min-height: 140px; padding: 8px; position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .cell.empty { background-color: #f9f9f9; }
+
+        .m-0 { background-color: var(--color-lunarede); }
+        .m-1 { background-color: var(--color-velmarede); }
+        .m-2 { background-color: var(--color-lunavede); }
+        .m-3 { background-color: var(--color-terenvado); }
+        .m-4 { background-color: var(--color-nimeverado); }
+        .m-5 { background-color: var(--color-orvedado); }
+        .m-velario { background-color: var(--color-velario); }
+
+        .is-fest { background-color: rgba(115, 24, 31, 0.1) !important; box-shadow: inset 0 0 0 1px var(--header-bg); }
+
+        .day-name { font-size: 0.85rem; font-weight: bold; color: #73181F; margin-bottom: 2px; }
+        
+        .greg-info { 
+            font-size: 0.7rem; 
+            color: #777; 
+            font-style: italic; 
+            opacity: 0.7; 
+            line-height: 1.1;
+            margin-bottom: 5px;
+            text-transform: capitalize;
+        }
+
+        .abs-num { position: absolute; top: 5px; right: 8px; font-weight: bold; font-size: 0.7rem; color: rgba(0,0,0,0.3); }
+        .month-num { position: absolute; bottom: 8px; right: 8px; font-weight: bold; font-size: 1.2rem; }
+
+        .zoda-sym { font-weight: bold; font-size: 1rem; color: #444; }
+
+        .fest-label { 
+            background: var(--header-bg); 
+            color: white;
+            font-size: 0.65rem; padding: 3px; 
+            margin-top: 5px; font-weight: bold; 
+            display: block;
+            border-radius: 2px;
+            line-height: 1.2;
+        }
+
+        input { padding: 8px; width: 80px; font-size: 1.1rem; }
+        button { padding: 8px 20px; background: var(--header-bg); color: white; border: none; cursor: pointer; border-radius: 4px; }
+
+        /* MEDIA QUERIES PER MOBILE */
+        @media screen and (max-width: 768px) {
+            body { padding: 10px; }
+            .controls h1 { font-size: 1.2rem; }
+            .month-label { font-size: 1.1rem; padding: 8px 20px; }
+            .calendar-header { font-size: 1.2rem; padding: 15px; }
+            
+            /* Hint per l'utente che può scorrere */
+            .grid-wrapper::after {
+                content: "← Scorri per vedere tutti i giorni →";
+                display: block;
+                text-align: center;
+                font-size: 0.7rem;
+                color: var(--header-bg);
+                padding: 5px;
+                background: #eee;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="controls">
+    <h1>CALENDARIO DELL'UNIONE</h1>
+    <label>Anno CU: </label>
+    <input type="number" id="yearInput" value="1164">
+    <button onclick="render()">Calcola giorni</button>
+</div>
+
+<div id="output"></div>
+
+<script>
+// --- LOGICA INVARIATA COME RICHIESTO ---
+const CU_WEEKNAMES = ["Alba", "Destino", "Giuramento", "Giudizio", "Memoria", "Patto", "Sacrificio", "Vendetta", "Ybris", "Baluardo", "Eresia", "Honore", "Karma", "Nexus"];
+const MONTHS = ["Lunarede", "Velmarede", "Lunavede", "Terenvado", "Nimeverado", "Orvedado"];
+const ZODA_SYMBOLS = ["-", ")", "[)", "+[)", "(+)", "(]+", "(]", "("];
+
+const FIXED_HOLIDAYS = {
+    1: "Giorno della Quadrata Antica", 31: "Rito dell’Albero Maestro", 34: "L’Invocazione",
+    61: "Giorno del Rispetto", 74: "Festa delle Fate", 84: "Feste dei mercati",
+    120: "Giorno dell’Acqua Chiara", 128: "Notte delle Fanciulle", 168: "Dipartita",
+    178: "Festa della Luna", 206: "Mezzestate", 219: "Festa del ritorno",
+    305: "Scudiuniti", 344: "Giorno del Sovrano", 355: "Mezzinverno"
+};
+
+function isLeap(y) {
+    let gregYear = y + 862;
+    return (gregYear % 4 === 0 && gregYear % 100 !== 0) || (gregYear % 400 === 0);
+}
+
+function getDynamicHolidays(targetYear, totalDaysOffset) {
+    let holidays = {};
+    let gregYear = targetYear + 862;
+    let foundMezzapioggia = false, foundMitane = false, foundRaccolto = false;
+    let daysInYear = isLeap(targetYear) ? 366 : 365;
+
+    for (let d = 1; d <= daysInYear; d++) {
+        let abs = totalDaysOffset + d;
+        let zodaIdx = Math.floor(((abs - 1) % 56) / 7);
+        let gDate = new Date(gregYear, 0);
+        gDate.setDate(d);
+
+        if (!foundMezzapioggia && gDate >= new Date(gregYear, 2, 21) && zodaIdx === 4) {
+            holidays[d] = "Mezzapioggia";
+            foundMezzapioggia = true;
+        }
+        if (!foundMitane && gDate >= new Date(gregYear, 8, 23) && zodaIdx === 7) {
+            holidays[d+1] = "Giochi di Mitane (I)";
+            holidays[d+2] = "Giochi di Mitane (II)";
+            holidays[d+3] = "Giochi di Mitane (III)";
+            foundMitane = true;
+        }
+        if (!foundRaccolto && gDate >= new Date(gregYear, 8, 23) && zodaIdx === 4) {
+            for(let s=1; s<=7; s++) { holidays[d+s] = "Settimana del Raccolto"; }
+            foundRaccolto = true;
+        }
+    }
+    return holidays;
+}
+
+function render() {
+    const targetYear = parseInt(document.getElementById('yearInput').value);
+    const gregYear = targetYear + 862;
+    const container = document.getElementById('output');
+    
+    let totalDaysOffset = 0;
+    for (let y = 1164; y < targetYear; y++) {
+        totalDaysOffset += isLeap(y) ? 366 : 365;
+    }
+
+    const dynamicHolidays = getDynamicHolidays(targetYear, totalDaysOffset);
+
+    container.innerHTML = `
+        <h2 class="calendar-header">Anno ${targetYear} CU</h2>
+        <div class="calendar-subheader">(Gregoriano: ${gregYear} | Ciclo Zoda attivo)</div>
+    `;
+
+    let currentAbsCounter = totalDaysOffset + 1;
+    let dayOfYear = 1;
+
+    function renderMonth(mName, daysCount, cssMese) {
+        // Aggiunto il wrapper div per lo scroll
+        let html = `<div class="month-section">
+                        <div class="month-label">${mName}</div>
+                        <div class="grid-wrapper">
+                            <div class="grid">`;
+        let offset = (currentAbsCounter - 1) % 14;
+        for (let i = 0; i < offset; i++) html += `<div class="cell empty"></div>`;
+
+        for (let d = 1; d <= daysCount; d++) {
+            html += generateCell(currentAbsCounter, dayOfYear, d, cssMese, gregYear, dynamicHolidays);
+            currentAbsCounter++;
+            dayOfYear++;
+        }
+        html += `</div></div></div>`;
+        container.innerHTML += html;
+    }
+
+    MONTHS.forEach((mName, mIdx) => renderMonth(mName, 60, `m-${mIdx}`));
+    renderMonth("Velario", isLeap(targetYear) ? 6 : 5, "m-velario");
+}
+
+function generateCell(abs, dayOfYear, monthDay, cssClass, gregYear, dynamicHolidays) {
+    const weekDayIdx = (abs - 1) % 14;
+    const zodaPos = (abs - 1) % 56;
+    const zodaSymbol = ZODA_SYMBOLS[Math.floor(zodaPos / 7)];
+    const holidayName = FIXED_HOLIDAYS[dayOfYear] || dynamicHolidays[dayOfYear] || "";
+    const festClass = holidayName ? "is-fest" : "";
+    let gDate = new Date(gregYear, 0);
+    gDate.setDate(dayOfYear);
+    const gregDayName = gDate.toLocaleDateString('it-IT', { weekday: 'short' }); // Accorciato per mobile
+    const gregMonthName = gDate.toLocaleDateString('it-IT', { month: 'short' }); // Accorciato per mobile
+
+    return `
+        <div class="cell ${cssClass} ${festClass}">
+            <div class="day-name">${CU_WEEKNAMES[weekDayIdx]}</div>
+            <div class="greg-info">${gregDayName} ${gDate.getDate()} ${gregMonthName}</div>
+            <div class="lunar-box">
+                <span class="zoda-sym">${zodaSymbol}</span>
+            </div>
+            ${holidayName ? `<div class="fest-label">${holidayName}</div>` : ''}
+            <div class="month-num">${monthDay}</div>
+        </div>
+    `;
+}
+
+render();
+</script>
+</body>
+</html>
